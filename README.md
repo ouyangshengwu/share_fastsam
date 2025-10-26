@@ -6,9 +6,9 @@
 * ✅ 多场景适配：目前已支持道路分割、医学影像（病灶标注）、工业检测（缺陷识别）、自动化标注​
 * ✅ 工程化容器化推理部署：提供测试web页面，webservice服务端、Docker 镜像封装。​
 * 最惊喜的是部署门槛极低！不用懂复杂的深度学习框架，前后端对接只需要调用 API，返回 JSON 格式的分割结果，前端直接渲染掩码图就行。我们测试过单节点支持 1000+QPS，峰值时自动扩缩容，完全能扛住生产环境的流量压力。​
-## 可视化
-<img width="268" height="481" alt="img" src="https://github.com/user-attachments/assets/3902464a-27de-49bc-ac30-c72a951f0fe2" /><img width="268" height="481" alt="img_1" src="https://github.com/user-attachments/assets/ac1ebf34-ffb2-41a0-a3e4-65e3bcf37866" />
-<img width="268" height="481" alt="img_2" src="https://github.com/user-attachments/assets/c366d206-5101-4ae6-a78c-0b5b1a064a75" />
+## 可视化-H5界面
+<img width="268" height="481" alt="img" src="https://github.com/user-attachments/assets/3902464a-27de-49bc-ac30-c72a951f0fe2" /><img width="268" height="481" alt="img_1" src="https://github.com/user-attachments/assets/ac1ebf34-ffb2-41a0-a3e4-65e3bcf37866" /><img width="268" height="481" alt="img_2" src="https://github.com/user-attachments/assets/c366d206-5101-4ae6-a78c-0b5b1a064a75" />
+## 可视化-web界面
 <img width="1920" height="879" alt="img_4" src="https://github.com/user-attachments/assets/df85f1db-bc05-4525-b080-514573798e31" />
 
 
