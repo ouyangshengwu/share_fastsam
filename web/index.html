@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fast Segment Anything Model X  图片推理系统</title>
+  <!-- 引入Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+
+  <!-- 配置Tailwind -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#10B981',
+            neutral: '#64748B',
+            dark: '#1E293B',
+            light: '#F8FAFC'
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .image-container {
+        @apply relative border-2 border-dashed border-neutral rounded-lg overflow-hidden transition-all duration-300 bg-gray-50;
+      }
+      .image-container.active {
+        @apply border-primary shadow-lg;
+      }
+      .coordinate-point {
+        @apply absolute w-4 h-4 bg-red-500 rounded-full transform -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse;
+      }
+      .btn-primary {
+        @apply bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2;
+      }
+      .btn-secondary {
+        @apply bg-white border border-primary text-primary hover:bg-primary/5 font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center gap-2;
+      }
+      .card {
+        @apply bg-white rounded-xl shadow-md p-6 transition-all duration-300 hover:shadow-lg;
+      }
+      .image-placeholder {
+        @apply absolute inset-0 flex flex-col items-center justify-center text-neutral pointer-events-none transition-opacity duration-300;
+      }
+    }
+  </style>
+</head>
+<body class="font-inter bg-gray-50 min-h-screen text-dark">
+  <!-- 顶部导航 -->
+  <header class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <i class="fa fa-cogs text-primary text-2xl"></i>
+        <h1 class="text-xl md:text-2xl font-bold text-dark">Fast Segment Anything Model X  图片推理系统</h1>
+      </div>
+      <div class="text-sm text-neutral hidden md:block">
+        <span id="connection-status" class="flex items-center gap-1">
+          <i class="fa fa-circle text-gray-300"></i>
+          <span>未连接到服务器</span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="container mx-auto px-4 py-8">
+    <!-- 操作区 -->
+    <div class="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+      <div>
+        <h2 class="text-xl font-semibold mb-1">图片处理</h2>
+        <p class="text-neutral text-sm">上传图片并点击选择位置进行推理分析</p>
+      </div>
+
+      <div class="flex flex-wrap gap-3 w-full md:w-auto">
+        <label for="image-upload" class="btn-primary cursor-pointer">
+          <i class="fa fa-upload"></i>
+          <span>上传图片</span>
+        </label>
+        <input id="image-upload" type="file" accept="image/*" class="hidden">
+
+        <button id="process-btn" class="btn-secondary" disabled>
+          <i class="fa fa-play"></i>
+          <span>开始推理</span>
+        </button>
+
+        <button id="reset-btn" class="btn-secondary" disabled>
+          <i class="fa fa-refresh"></i>
+          <span>重置</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 图片展示区 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- 原始图片 -->
+      <div class="card">
+        <h3 class="text-lg font-medium mb-4 flex items-center gap-2">
+          <i class="fa fa-picture-o text-neutral"></i>
+          <span>原始图片</span>
+        </h3>
+
+        <div id="original-image-container" class="image-container aspect-video relative">
+          <!-- 占位提示 -->
+          <div id="original-placeholder" class="image-placeholder">
+            <i class="fa fa-image text-5xl mb-3 opacity-30"></i>
+            <p>请上传图片并点击选择位置</p>
+            <p class="text-xs mt-1">支持 JPG、PNG 等格式</p>
+          </div>
+
+          <!-- 原始图片 -->
+          <img id="original-image" class="w-full h-full object-contain opacity-0 transition-opacity duration-300" alt="原始图片">
+        </div>
+
+        <div class="mt-4 text-sm">
+          <p id="coordinates" class="text-neutral hidden">
+            选择位置: <span class="font-medium text-primary">X: --, Y: --</span>
+          </p>
+          <p id="debug-info" class="text-gray-400 text-xs mt-1 hidden">
+            调试信息: 容器尺寸: --x--, 图片显示尺寸: --x--, 原始尺寸: --x--
+          </p>
+        </div>
+      </div>
+
+      <!-- 推理结果 -->
+      <div class="card">
+        <h3 class="text-lg font-medium mb-4 flex items-center gap-2">
+          <i class="fa fa-line-chart text-neutral"></i>
+          <span>推理结果</span>
+        </h3>
+
+        <div id="result-container" class="image-container aspect-video relative">
+          <!-- 结果占位提示 -->
+          <div id="result-placeholder" class="image-placeholder">
+            <i class="fa fa-bar-chart text-5xl mb-3 opacity-30"></i>
+            <p>推理结果将显示在这里</p>
+            <p class="text-xs mt-1">上传图片并点击推理后生成</p>
+          </div>
+
+          <!-- 结果图片 -->
+          <img id="result-image" class="w-full h-full object-contain opacity-0 transition-opacity duration-300" alt="推理结果">
+
+          <!-- 加载指示器 -->
+          <div id="loading-indicator" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-50/80">
+            <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p class="mt-3 text-neutral">处理中，请稍候...</p>
+          </div>
+
+          <!-- 错误信息 -->
+          <div id="error-message" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-50/80 text-red-500 p-6">
+            <i class="fa fa-exclamation-triangle text-5xl mb-3"></i>
+            <p>处理失败</p>
+            <p class="text-xs mt-1" id="error-details">请检查服务器连接或图片格式</p>
+          </div>
+        </div>
+
+        <div id="result-data" class="mt-4">
+          <h4 class="font-medium mb-2">推理信息:</h4>
+          <div class="text-sm text-neutral">
+            <p>处理位置: <span id="processed-coords" class="font-medium text-primary">未处理</span></p>
+            <p class="mt-1">处理时间: <span id="process-time" class="font-medium text-primary">-</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 操作说明 -->
+    <div class="card bg-blue-50 border border-blue-100">
+      <h3 class="text-lg font-medium mb-3 flex items-center gap-2">
+        <i class="fa fa-info-circle text-primary"></i>
+        <span>操作说明</span>
+      </h3>
+      <ul class="list-disc pl-5 text-sm text-neutral space-y-1">
+        <li>点击"上传图片"按钮选择需要处理的图片</li>
+        <li>在上传的图片上点击，选择需要分析的位置（显示红色标记点）</li>
+        <li>点击"开始推理"按钮发送请求到服务器进行处理</li>
+        <li>处理完成后，右侧将显示推理后的图片结果</li>
+        <li>点击"重置"按钮可以清除当前图片和结果，重新开始</li>
+      </ul>
+    </div>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-dark text-white py-6 mt-12">
+    <div class="container mx-auto px-4 text-center text-sm opacity-70">
+      <p>Fast Segment Anything Model X  图片推理系统 &copy; 2023</p>
+    </div>
+  </footer>
+
+  <script>
+    // DOM元素
+    const imageUpload = document.getElementById('image-upload');
+    const originalImageContainer = document.getElementById('original-image-container');
+    const originalImage = document.getElementById('original-image');
+    const originalPlaceholder = document.getElementById('original-placeholder');
+    const resultContainer = document.getElementById('result-container');
+    const resultPlaceholder = document.getElementById('result-placeholder');
+    const resultImage = document.getElementById('result-image');
+    const resultData = document.getElementById('result-data');
+    const processedCoords = document.getElementById('processed-coords');
+    const processTime = document.getElementById('process-time');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const errorMessage = document.getElementById('error-message');
+    const errorDetails = document.getElementById('error-details');
+    const processBtn = document.getElementById('process-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const coordinates = document.getElementById('coordinates');
+    const connectionStatus = document.getElementById('connection-status');
+    const debugInfo = document.getElementById('debug-info');
+
+    // 状态变量
+    let selectedPoint = null;
+    let imageFile = null;
+    let isProcessing = false;
+
+    // 检查服务器连接状态
+    function checkServerConnection() {
+      fetch('http://127.0.0.1:15000/', { method: 'HEAD', mode: 'cors' })
+        .then(response => {
+          connectionStatus.innerHTML = '<i class="fa fa-circle text-green-500"></i><span>已连接到服务器</span>';
+          return true;
+        })
+        .catch(error => {
+          connectionStatus.innerHTML = '<i class="fa fa-circle text-red-500"></i><span>无法连接到服务器</span>';
+          return false;
+        });
+    }
+
+    // 初始化检查连接
+    checkServerConnection();
+    setInterval(checkServerConnection, 30000);
+
+    // 上传图片处理
+    imageUpload.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        if (!file.type.startsWith('image/')) {
+          alert('请上传图片文件');
+          return;
+        }
+
+        imageFile = file;
+        selectedPoint = null;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          originalImage.src = event.target.result;
+
+          originalImage.onload = () => {
+            originalPlaceholder.style.opacity = '0';
+            originalImage.style.opacity = '1';
+            originalImageContainer.classList.add('active');
+
+            // 清除之前的点
+            const oldPoint = document.querySelector('.coordinate-point');
+            if (oldPoint) oldPoint.remove();
+
+            // 显示调试信息
+            updateDebugInfo();
+            debugInfo.classList.remove('hidden');
+
+            coordinates.classList.add('hidden');
+            updateButtonStates();
+          };
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // 更新调试信息
+    function updateDebugInfo() {
+      if (!originalImage.src) return;
+
+      const containerRect = originalImageContainer.getBoundingClientRect();
+      const containerWidth = Math.round(containerRect.width);
+      const containerHeight = Math.round(containerRect.height);
+      const imgWidth = Math.round(originalImage.offsetWidth);
+      const imgHeight = Math.round(originalImage.offsetHeight);
+      const naturalWidth = originalImage.naturalWidth;
+      const naturalHeight = originalImage.naturalHeight;
+
+      debugInfo.textContent = `调试信息: 容器尺寸: ${containerWidth}x${containerHeight}, 图片显示尺寸: ${imgWidth}x${imgHeight}, 原始尺寸: ${naturalWidth}x${naturalHeight}`;
+    }
+
+    // 窗口大小改变时重新计算调试信息
+    window.addEventListener('resize', () => {
+      if (originalImage.src) {
+        updateDebugInfo();
+      }
+    });
+
+    // 图片点击处理 - 精确获取坐标
+    originalImageContainer.addEventListener('click', (e) => {
+      if (originalImage.style.opacity !== '1') return;
+
+      // 获取容器和图片的尺寸信息
+      const containerRect = originalImageContainer.getBoundingClientRect();
+      const img = originalImage;
+
+      // 图片的实际显示尺寸
+      const imgDisplayWidth = img.offsetWidth;
+      const imgDisplayHeight = img.offsetHeight;
+
+      // 图片的原始尺寸
+      const imgNaturalWidth = img.naturalWidth;
+      const imgNaturalHeight = img.naturalHeight;
+
+      // 计算图片在容器中的偏移量（考虑居中显示时的留白）
+      const imgOffsetX = (containerRect.width - imgDisplayWidth) / 2;
+      const imgOffsetY = (containerRect.height - imgDisplayHeight) / 2;
+
+      // 计算点击位置在图片上的相对坐标（相对于图片左上角）
+      const clickXInImg = e.clientX - containerRect.left - imgOffsetX;
+      const clickYInImg = e.clientY - containerRect.top - imgOffsetY;
+
+      // 检查点击是否在图片范围内
+      if (clickXInImg < 0 || clickXInImg > imgDisplayWidth ||
+          clickYInImg < 0 || clickYInImg > imgDisplayHeight) {
+        return; // 点击在图片外的留白区域，忽略
+      }
+
+      // 计算缩放比例
+      const scaleX = imgNaturalWidth / imgDisplayWidth;
+      const scaleY = imgNaturalHeight / imgDisplayHeight;
+
+      // 计算原始图片上的真实坐标
+      const x = Math.round(clickXInImg * scaleX);
+      const y = Math.round(clickYInImg * scaleY);
+
+      // 保存选择的点
+      selectedPoint = { x, y };
+
+      // 显示坐标点（在图片上的位置）
+      const oldPoint = document.querySelector('.coordinate-point');
+      if (oldPoint) oldPoint.remove();
+
+      const point = document.createElement('div');
+      point.className = 'coordinate-point';
+      point.style.left = `${clickXInImg + imgOffsetX}px`;
+      point.style.top = `${clickYInImg + imgOffsetY}px`;
+      originalImageContainer.appendChild(point);
+
+      // 显示坐标信息
+      coordinates.querySelector('span').textContent = `X: ${x}, Y: ${y}`;
+      coordinates.classList.remove('hidden');
+
+      updateButtonStates();
+    });
+
+    // 处理推理请求
+    processBtn.addEventListener('click', async () => {
+      if (!imageFile || !selectedPoint || isProcessing) return;
+
+      isProcessing = true;
+      updateButtonStates();
+
+      const startTime = new Date();
+
+      // 显示加载状态
+      resultPlaceholder.style.opacity = '0';
+      resultImage.style.opacity = '0';
+      errorMessage.classList.add('hidden');
+      loadingIndicator.classList.remove('hidden');
+
+      try {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        formData.append('x', selectedPoint.x);
+        formData.append('y', selectedPoint.y);
+
+        const response = await fetch('http://127.0.0.1:15000/process', {
+          method: 'POST',
+          body: formData,
+          mode: 'cors'
+        });
+
+        if (!response.ok) {
+          throw new Error(`服务器错误: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+
+        const endTime = new Date();
+        const processingTime = ((endTime - startTime) / 1000).toFixed(2);
+
+        resultImage.src = imageUrl;
+        resultImage.onload = () => {
+          loadingIndicator.classList.add('hidden');
+          resultImage.style.opacity = '1';
+        };
+
+        processedCoords.textContent = `X: ${selectedPoint.x}, Y: ${selectedPoint.y}`;
+        processTime.textContent = `${processingTime} 秒`;
+
+      } catch (error) {
+        loadingIndicator.classList.add('hidden');
+        errorDetails.textContent = error.message;
+        errorMessage.classList.remove('hidden');
+        console.error('处理失败:', error);
+      } finally {
+        isProcessing = false;
+        updateButtonStates();
+      }
+    });
+
+    // 重置功能
+    resetBtn.addEventListener('click', () => {
+      originalImage.src = '';
+      originalImage.style.opacity = '0';
+      originalPlaceholder.style.opacity = '1';
+      originalImageContainer.classList.remove('active');
+
+      const point = document.querySelector('.coordinate-point');
+      if (point) point.remove();
+
+      resultPlaceholder.style.opacity = '1';
+      resultImage.src = '';
+      resultImage.style.opacity = '0';
+      errorMessage.classList.add('hidden');
+      loadingIndicator.classList.add('hidden');
+
+      processedCoords.textContent = '未处理';
+      processTime.textContent = '-';
+
+      imageFile = null;
+      selectedPoint = null;
+      coordinates.classList.add('hidden');
+      debugInfo.classList.add('hidden');
+
+      updateButtonStates();
+    });
+
+    // 更新按钮状态
+    function updateButtonStates() {
+      const hasImage = !!imageFile;
+      const canProcess = hasImage && !!selectedPoint && !isProcessing;
+
+      processBtn.disabled = !canProcess;
+      resetBtn.disabled = !hasImage;
+
+      if (isProcessing) {
+        processBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i><span>处理中...</span>';
+      } else {
+        processBtn.innerHTML = '<i class="fa fa-play"></i><span>开始推理</span>';
+      }
+    }
+  </script>
+</body>
+</html>
